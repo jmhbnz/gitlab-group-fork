@@ -12,4 +12,5 @@ pylint:
       - rspec.xml
     reports:
       junit: rspec.xml
+    when: always
   
