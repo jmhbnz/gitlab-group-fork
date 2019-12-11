@@ -1,1 +1,2 @@
 python-gitlab>=1.13.0
+treelib>=1.5.5
