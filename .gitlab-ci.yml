@@ -13,4 +13,5 @@ pylint:
     reports:
       junit: rspec.xml
     when: always
+  allow_failure: true
   
