@@ -1,9 +1,6 @@
 include:
   - template: Security/SAST.gitlab-ci.yml
 
-variables:
-  CI_PROJECT_REPOSITORY_LANGUAGES: "python"
-
 stages:
   - test
 
