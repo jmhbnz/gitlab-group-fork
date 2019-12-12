@@ -56,17 +56,18 @@ def read_src_group(gl, src):
     src_group_tree.create_node(top_level_group.path, top_level_group.id, data=top_level_group.name)
     def get_sub_groups(parent):
         logging.debug('Looking for sub-groups in %s', parent.full_path)
-        new_top = gl.groups.get(parent.full_path, include_subgroups=True)
+        new_top = gl.groups.get(parent.id, include_subgroups=True)
         subgroups = new_top.subgroups.list(all_available=True)
         for sub in subgroups:
             logging.debug('Found sub-group %s', sub.full_path)
             src_group_tree.create_node(sub.path, sub.id, parent=new_top.id, data=sub.name)
-            logging.debug('Added node to tree with id %s', sub.id)
-            new_parent = gl.groups.get(sub.full_path, include_subgroups=True)
+            logging.debug('Added node to tree with name %s and id %s', sub.path, sub.id)
+            new_parent = gl.groups.get(sub.id, include_subgroups=True)
             new_subgroup = new_parent.subgroups.list(all_available=True)
             for child in new_subgroup:
                 logging.debug('Traversing group %s', child.full_path)
-                get_sub_groups(new_parent)
+                src_group_tree.create_node(child.path, child.id, parent=new_parent.id, data=child.name)
+                get_sub_groups(child)
     get_sub_groups(top_level_group)
     src_group_tree.show()
     print(src_group_tree.to_json(with_data=True))
