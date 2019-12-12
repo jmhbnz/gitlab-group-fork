@@ -53,11 +53,21 @@ def read_src_group(gl, src):
     logging.info("Attemping to read source group '%s/%s'", gl.url, src)
     src_group_tree = Tree()
     top_level_group = gl.groups.get(src, include_subgroups=True)
-    src_group_tree.create_node(top_level_group.path, top_level_group.path, data=top_level_group.name)
-    subgroups = top_level_group.subgroups.list(all_available=True)
-    for sub in subgroups:
-        logging.debug('Found sub-group %s', sub.path)
-        src_group_tree.create_node(sub.path, sub.path, parent=top_level_group.path, data=sub.name)
+    src_group_tree.create_node(top_level_group.path, top_level_group.id, data=top_level_group.name)
+    def get_sub_groups(parent):
+        logging.debug('Looking for sub-groups in %s', parent.full_path)
+        new_top = gl.groups.get(parent.full_path, include_subgroups=True)
+        subgroups = new_top.subgroups.list(all_available=True)
+        for sub in subgroups:
+            logging.debug('Found sub-group %s', sub.full_path)
+            src_group_tree.create_node(sub.path, sub.id, parent=new_top.id, data=sub.name)
+            logging.debug('Added node to tree with id %s', sub.id)
+            new_parent = gl.groups.get(sub.full_path, include_subgroups=True)
+            new_subgroup = new_parent.subgroups.list(all_available=True)
+            for child in new_subgroup:
+                logging.debug('Traversing group %s', child.full_path)
+                get_sub_groups(new_parent)
+    get_sub_groups(top_level_group)
     src_group_tree.show()
     print(src_group_tree.to_json(with_data=True))
     return src_group_tree
