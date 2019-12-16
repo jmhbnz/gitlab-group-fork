@@ -9,14 +9,17 @@ import gitlab
 from treelib import Tree
 
 class GitLabInfo():
-    def __init__(self, type="", id="", name="", path="", description="", full_path="", new_id=""):
-            self.type = type #group or project
-            self.id = id
-            self.name = name
-            self.path = path
-            self.description = description
-            self.full_path = full_path
-            self.new_id = new_id
+    """Custom Data Type to hold data returned about group or project"""
+    def __init__(
+            self, gitlab_type="", gitlab_id="", name="",
+            path="", description="", full_path="", new_id=""):
+        self.gitlab_type = gitlab_type #group or project
+        self.gitlab_id = gitlab_id
+        self.name = name
+        self.path = path
+        self.description = description
+        self.full_path = full_path
+        self.new_id = new_id
 
 def main():
     """Main Function"""
@@ -68,9 +71,9 @@ def read_src_group(glab, src):
         top_level_group.path,
         top_level_group.id,
         data=GitLabInfo(
-            type="group", 
-            id=top_level_group.id, 
-            name=top_level_group.name, 
+            gitlab_type="group",
+            gitlab_id=top_level_group.id,
+            name=top_level_group.name,
             full_path=top_level_group.full_path,
             path=top_level_group.path,
             description=top_level_group.description))
@@ -85,9 +88,9 @@ def read_src_group(glab, src):
                 sub.id,
                 parent=new_top.id,
                 data=GitLabInfo(
-                    type="group", 
-                    id=sub.id, 
-                    name=sub.name, 
+                    gitlab_type="group",
+                    gitlab_id=sub.id,
+                    name=sub.name,
                     full_path=sub.full_path,
                     path=sub.path,
                     description=sub.description))
@@ -101,9 +104,9 @@ def read_src_group(glab, src):
                     child.id,
                     parent=new_parent.id,
                     data=GitLabInfo(
-                        type="group", 
-                        id=child.id, 
-                        name=child.name, 
+                        gitlab_type="group",
+                        gitlab_id=child.id,
+                        name=child.name,
                         full_path=child.full_path,
                         path=child.path,
                         description=child.description))
@@ -119,7 +122,7 @@ def create_dest_group(glab, dest, src_group_tree):
         logging.error('SubGroup as destination not supported "%s"', dest)
         sys.exit(1)
     dest_group_tree = Tree()
-    logging.info('Attempting to create destination group at %s/%s',glab.url, dest)
+    logging.info('Attempting to create destination group at %s/%s', glab.url, dest)
     try:
         top_level_group = glab.groups.create({'name': dest, 'path': dest})
         logging.info('Group Created at %s/%s', glab.url, top_level_group.full_path)
@@ -127,37 +130,43 @@ def create_dest_group(glab, dest, src_group_tree):
             top_level_group.path,
             top_level_group.id,
             data=GitLabInfo(
-                        type="group",
-                        id=top_level_group.id, 
-                        name=top_level_group.name, 
-                        full_path=top_level_group.full_path,
-                        path=top_level_group.path,
-                        description=top_level_group.description))
+                gitlab_type="group",
+                gitlab_id=top_level_group.id,
+                name=top_level_group.name,
+                full_path=top_level_group.full_path,
+                path=top_level_group.path,
+                description=top_level_group.description))
         src_group_tree.update_node(src_group_tree.root, data=GitLabInfo(new_id=top_level_group.id))
-    except gitlab.exceptions.GitlabCreateError as e:
-        logging.error('Group Cannot be created: %s', e)
+    except gitlab.exceptions.GitlabCreateError as err:
+        logging.error('Group Cannot be created: %s', err)
         sys.exit(1)
     except:
         logging.debug('An error occurred')
         raise
-    for g in src_group_tree.expand_tree():
-        if src_group_tree.level(g) == 0:
+    for grp in src_group_tree.expand_tree():
+        if src_group_tree.level(grp) == 0:
             continue
-        new_parent = src_group_tree.get_node(src_group_tree.parent(g).identifier).data.new_id
-        logging.debug('Creating Group "%s" with Path "%s" and Parent ID "%s"', src_group_tree.get_node(g).data.name, src_group_tree.get_node(g).data.path, new_parent)
-        new_group = glab.groups.create({'name': src_group_tree.get_node(g).data.name, 'path': src_group_tree.get_node(g).data.path, 'parent_id': new_parent})
-        src_group_tree.update_node(g, data=GitLabInfo(new_id=new_group.id))
+        new_parent = src_group_tree.get_node(src_group_tree.parent(grp).identifier).data.new_id
+        logging.debug('Creating Group "%s" with Path "%s" and Parent ID "%s"',
+                      src_group_tree.get_node(grp).data.name,
+                      src_group_tree.get_node(grp).data.path,
+                      new_parent)
+        new_group = glab.groups.create(
+            {'name': src_group_tree.get_node(grp).data.name,
+             'path': src_group_tree.get_node(grp).data.path,
+             'parent_id': new_parent})
+        src_group_tree.update_node(grp, data=GitLabInfo(new_id=new_group.id))
         dest_group_tree.create_node(
             new_group.path,
             new_group.id,
             parent=new_parent,
             data=GitLabInfo(
-                        type="group",
-                        id=new_group.id, 
-                        name=new_group.name, 
-                        full_path=new_group.full_path,
-                        path=new_group.path,
-                        description=new_group.description))
+                gitlab_type="group",
+                gitlab_id=new_group.id,
+                name=new_group.name,
+                full_path=new_group.full_path,
+                path=new_group.path,
+                description=new_group.description))
     logging.info('Created %s sub-groups', len(dest_group_tree)-1)
     dest_group_tree.show(idhidden=False)
     return dest_group_tree
