@@ -9,7 +9,7 @@ pylint:
   script:
     - pip install -r requirements.txt
     - pip install pylint pylint-junit
-    - pylint --output-format=pylint_junit.JUnitReporter gitlab_group_fork.py | tee rspec.xml
+    - pylint --fail_under 9.5 --output-format=pylint_junit.JUnitReporter gitlab_group_fork.py | tee rspec.xml
   artifacts:
     paths:
       - rspec.xml
