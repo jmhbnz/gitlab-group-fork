@@ -23,12 +23,13 @@ class GitLabInfo():
 
 def main():
     """Main Function"""
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.ERROR)
     options = parse_cli()
     glab = gitlab.Gitlab(options.url, options.token)
     src_group_tree = read_src_group(glab, options.srcGroup)
-    create_dest_group(glab, options.destGroup, src_group_tree)
-
+    dest_group_tree = create_dest_group(glab, options.destGroup, src_group_tree)
+    count_of_projects = fork_projects(glab, src_group_tree, dest_group_tree)
+    print(f"Forked {count_of_projects} Projects into {len(dest_group_tree)} Groups")
 
 def parse_cli():
     """Parse CLI Options and return, fail on no valid token"""
@@ -113,6 +114,7 @@ def read_src_group(glab, src):
                 get_sub_groups(child)
     get_sub_groups(top_level_group)
     logging.info('Found %s sub-groups', len(src_group_tree)-1)
+    print("Source Groups[group_id]:")
     src_group_tree.show(idhidden=False)
     return src_group_tree
 
@@ -168,9 +170,27 @@ def create_dest_group(glab, dest, src_group_tree):
                 path=new_group.path,
                 description=new_group.description))
     logging.info('Created %s sub-groups', len(dest_group_tree)-1)
+    print("Destination Groups[group_id]:")
     dest_group_tree.show(idhidden=False)
     return dest_group_tree
 
+def fork_projects(glab, src_group_tree, dest_group_tree):
+    """Fork the projects in source groups into destination groups"""
+    count = 0
+    logging.debug('Attempting to fork projects from %s to %s',
+                  src_group_tree.get_node(src_group_tree.root).tag,
+                  dest_group_tree.get_node(dest_group_tree.root).tag)
+    for grp in src_group_tree.expand_tree():
+        gitlab_grp = glab.groups.get(grp)
+        projects = gitlab_grp.projects.list()
+        for project in projects:
+            gitlab_prj = glab.projects.get(project.id)
+            new_namespace = src_group_tree.get_node(grp).data.new_id
+            logging.debug('Forking project "%s" into namepace "%s"', gitlab_prj.name, new_namespace)
+            gitlab_prj.forks.create({'namespace': new_namespace})
+            print(f"Forked project: {gitlab_prj.name}")
+            count = count + 1
+    return count
 
 if __name__ == "__main__":
     main()
