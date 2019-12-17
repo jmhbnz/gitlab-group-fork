@@ -11,9 +11,8 @@ from treelib import Tree
 class GitLabInfo():
     """Custom Data Type to hold data returned about group or project"""
     def __init__(
-            self, gitlab_type="", gitlab_id="", name="",
+            self, gitlab_id="", name="",
             path="", description="", full_path="", new_id=""):
-        self.gitlab_type = gitlab_type #group or project
         self.gitlab_id = gitlab_id
         self.name = name
         self.path = path
@@ -63,54 +62,39 @@ def parse_cli():
             sys.exit(1)
     return options
 
+def add_new_group(gitlab_group_obj: gitlab.Gitlab) -> Tree:
+    """Function to add new GitLab Group to Tree Object"""
+    group_tree = Tree()
+    group_tree.create_node(
+        gitlab_group_obj.path,
+        gitlab_group_obj.id,
+        data=GitLabInfo(
+            gitlab_id=gitlab_group_obj.id,
+            name=gitlab_group_obj.name,
+            full_path=gitlab_group_obj.full_path,
+            path=gitlab_group_obj.path,
+            description=gitlab_group_obj.description))
+    return group_tree
+
 def read_src_group(glab, src):
     """Read source group tree from gitlab server"""
     logging.info("Attemping to read source group '%s/%s'", glab.url, src)
     src_group_tree = Tree()
     top_level_group = glab.groups.get(src, include_subgroups=True)
-    src_group_tree.create_node(
-        top_level_group.path,
-        top_level_group.id,
-        data=GitLabInfo(
-            gitlab_type="group",
-            gitlab_id=top_level_group.id,
-            name=top_level_group.name,
-            full_path=top_level_group.full_path,
-            path=top_level_group.path,
-            description=top_level_group.description))
+    src_group_tree = add_new_group(top_level_group) # For root node
     def get_sub_groups(parent):
         logging.debug('Looking for sub-groups in %s', parent.full_path)
         new_top = glab.groups.get(parent.id, include_subgroups=True)
         subgroups = new_top.subgroups.list(all_available=True)
         for sub in subgroups:
             logging.debug('Found sub-group %s', sub.full_path)
-            src_group_tree.create_node(
-                sub.path,
-                sub.id,
-                parent=new_top.id,
-                data=GitLabInfo(
-                    gitlab_type="group",
-                    gitlab_id=sub.id,
-                    name=sub.name,
-                    full_path=sub.full_path,
-                    path=sub.path,
-                    description=sub.description))
+            src_group_tree.paste(new_top.id, add_new_group(sub))
             logging.debug('Added node to tree with name %s and id %s', sub.path, sub.id)
             new_parent = glab.groups.get(sub.id, include_subgroups=True)
             new_subgroup = new_parent.subgroups.list(all_available=True)
             for child in new_subgroup:
                 logging.debug('Traversing group %s', child.full_path)
-                src_group_tree.create_node(
-                    child.path,
-                    child.id,
-                    parent=new_parent.id,
-                    data=GitLabInfo(
-                        gitlab_type="group",
-                        gitlab_id=child.id,
-                        name=child.name,
-                        full_path=child.full_path,
-                        path=child.path,
-                        description=child.description))
+                src_group_tree.paste(new_parent.id, add_new_group(child))
                 get_sub_groups(child)
     get_sub_groups(top_level_group)
     logging.info('Found %s sub-groups', len(src_group_tree)-1)
@@ -128,16 +112,7 @@ def create_dest_group(glab, dest, src_group_tree):
     try:
         top_level_group = glab.groups.create({'name': dest, 'path': dest})
         logging.info('Group Created at %s/%s', glab.url, top_level_group.full_path)
-        dest_group_tree.create_node(
-            top_level_group.path,
-            top_level_group.id,
-            data=GitLabInfo(
-                gitlab_type="group",
-                gitlab_id=top_level_group.id,
-                name=top_level_group.name,
-                full_path=top_level_group.full_path,
-                path=top_level_group.path,
-                description=top_level_group.description))
+        dest_group_tree = add_new_group(top_level_group) # For root node
         src_group_tree.update_node(src_group_tree.root, data=GitLabInfo(new_id=top_level_group.id))
     except gitlab.exceptions.GitlabCreateError as err:
         logging.error('Group Cannot be created: %s', err)
@@ -156,19 +131,10 @@ def create_dest_group(glab, dest, src_group_tree):
         new_group = glab.groups.create(
             {'name': src_group_tree.get_node(grp).data.name,
              'path': src_group_tree.get_node(grp).data.path,
-             'parent_id': new_parent})
+             'parent_id': new_parent,
+             'description': src_group_tree.get_node(grp).data.description})
         src_group_tree.update_node(grp, data=GitLabInfo(new_id=new_group.id))
-        dest_group_tree.create_node(
-            new_group.path,
-            new_group.id,
-            parent=new_parent,
-            data=GitLabInfo(
-                gitlab_type="group",
-                gitlab_id=new_group.id,
-                name=new_group.name,
-                full_path=new_group.full_path,
-                path=new_group.path,
-                description=new_group.description))
+        dest_group_tree.paste(new_parent, add_new_group(new_group))
     logging.info('Created %s sub-groups', len(dest_group_tree)-1)
     print("Destination Groups[group_id]:")
     dest_group_tree.show(idhidden=False)
