@@ -1,4 +1,3 @@
-#!/usr/bin/env python3.7
 """GitLab Group Fork - Fork and entire group of projects in a tree to another namespace"""
 
 import sys
